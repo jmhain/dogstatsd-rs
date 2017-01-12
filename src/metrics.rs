@@ -1,40 +1,44 @@
+use std::borrow::Borrow;
+
 use chrono::{DateTime, UTC};
 
-pub fn format_for_send(metric: String, namespace: &String, tags: Vec<String>) -> String {
-    let mut result = metric;
-
-    if namespace != "" {
-        result = format!("{}.{}", namespace, result)
-    }
-
-    let joined_tags = tags.join(",");
-    if joined_tags != "" {
-        result = format!("{}|#{}", result, joined_tags)
-    }
-
-    result
-}
-
 pub trait Metric {
-    fn metric_type_format(&self) -> String;
+    /// Renders a metric using the given namespace, without tags
+    fn render(&self) -> String;
+
+    fn render_ns(&self, namespace: Option<&str>) -> String {
+        match namespace {
+            Some(ns) => format!("{}.{}", ns, self.render()),
+            None => self.render(),
+        }
+    }
+
+    /// Renders a metrics using the given namespace, with tags
+    fn render_full<S: Borrow<str>>(&self, namespace: Option<&str>, tags: &[S]) -> String {
+        let metric = self.render_ns(namespace);
+        let joined = tags.join(",");
+
+        if joined.is_empty() {
+            metric
+        } else {
+            format!("{}|#{}", metric, joined)
+        }
+    }
 }
 
 pub enum CountMetric {
-    Incr(String),
-    Decr(String),
+    Incr(String, usize),
+    Decr(String, usize),
 }
 
 impl Metric for CountMetric {
-    // my_count:1|c
-    // my_count:-1|c
-    fn metric_type_format(&self) -> String {
-        match *self {
-            CountMetric::Incr(ref stat) => {
-                format!("{}:1|c", stat)
-            },
-            CountMetric::Decr(ref stat) => {
-                format!("{}:-1|c", stat)
-            },
+    // my_count:42|c
+    // my_count:-42|c
+    fn render(&self) -> String {
+        match self {
+            &CountMetric::Incr(ref stat, count) => format!("{}:{}|c", stat, count),
+            &CountMetric::Decr(ref stat, 0) => format!("{}:0|c", stat),
+            &CountMetric::Decr(ref stat, count) => format!("{}:-{}|c", stat, count),
         }
     }
 }
@@ -47,7 +51,7 @@ pub struct TimeMetric {
 
 impl Metric for TimeMetric {
     // my_stat:500|ms
-    fn metric_type_format(&self) -> String {
+    fn render(&self) -> String {
         let dur = self.end_time - self.start_time;
         format!("{}:{}|ms", self.stat, dur.num_milliseconds())
     }
@@ -70,7 +74,7 @@ pub struct TimingMetric {
 
 impl Metric for TimingMetric {
     // my_stat:500|ms
-    fn metric_type_format(&self) -> String {
+    fn render(&self) -> String {
         format!("{}:{}|ms", self.stat, self.ms)
     }
 }
@@ -91,7 +95,7 @@ pub struct GaugeMetric {
 
 impl Metric for GaugeMetric {
     // my_gauge:1000|g
-    fn metric_type_format(&self) -> String {
+    fn render(&self) -> String {
         format!("{}:{}|g", self.stat, self.val)
     }
 }
@@ -112,7 +116,7 @@ pub struct HistogramMetric {
 
 impl Metric for HistogramMetric {
     // my_histogram:1000|h
-    fn metric_type_format(&self) -> String {
+    fn render(&self) -> String {
         format!("{}:{}|h", self.stat, self.val)
     }
 }
@@ -133,7 +137,7 @@ pub struct SetMetric {
 
 impl Metric for SetMetric {
     // my_set:45|s
-    fn metric_type_format(&self) -> String {
+    fn render(&self) -> String {
         format!("{}:{}|s", self.stat, self.val)
     }
 }
@@ -153,12 +157,15 @@ pub struct Event {
 }
 
 impl Metric for Event {
-    fn metric_type_format(&self) -> String {
+    fn render(&self) -> String {
         format!("_e{{{title_len},{text_len}}}:{title}|{text}",
                 title_len = self.title.len(),
                 text_len = self.text.len(),
                 title = self.title,
                 text = self.text)
+    }
+    fn render_ns(&self, _: Option<&str>) -> String {
+        self.render() // ignore the namespace for Events
     }
 }
 
@@ -177,41 +184,23 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_format_for_send_no_tags() {
-        assert_eq!(
-            "namespace.metric:val|v".to_string(),
-            format_for_send("metric:val|v".to_string(), &"namespace".to_string(), vec![])
-        )
-    }
-
-    #[test]
-    fn test_format_for_send_no_namespace() {
-        assert_eq!(
-            "metric:val|v|#tag:1,tag:2".to_string(),
-            format_for_send("metric:val|v".to_string(), &String::new(), vec!["tag:1".into(), "tag:2".into()])
-        )
-    }
-
-    #[test]
-    fn test_format_for_send_everything() {
-        assert_eq!(
-            "namespace.metric:val|v|#tag:1,tag:2".to_string(),
-            format_for_send("metric:val|v".to_string(), &"namespace".to_string(), vec!["tag:1".into(), "tag:2".into()])
-        )
-    }
-
-    #[test]
     fn test_count_incr_metric() {
-        let metric = CountMetric::Incr("incr".into());
+        let metric = CountMetric::Incr("incr".into(), 10);
 
-        assert_eq!("incr:1|c", metric.metric_type_format())
+        assert_eq!("incr:10|c", metric.render());
+        assert_eq!("foo.incr:10|c", metric.render_ns(Some("foo")));
+        assert_eq!("foo.incr:10|c|#a:b",
+                   metric.render_full(Some("foo"), &["a:b"]));
     }
 
     #[test]
     fn test_count_decr_metric() {
-        let metric = CountMetric::Decr("decr".into());
+        let metric = CountMetric::Decr("decr".into(), 0);
 
-        assert_eq!("decr:-1|c", metric.metric_type_format())
+        assert_eq!("decr:0|c", metric.render());
+        assert_eq!("foo.decr:0|c", metric.render_ns(Some("foo")));
+        assert_eq!("foo.decr:0|c|#a:b",
+                   metric.render_full(Some("foo"), &["a:b"]));
     }
 
     #[test]
@@ -220,42 +209,62 @@ mod tests {
         let end_time = UTC.ymd(2016, 4, 24).and_hms_milli(0, 0, 0, 900);
         let metric = TimeMetric::new("time".into(), start_time, end_time);
 
-        assert_eq!("time:900|ms", metric.metric_type_format())
+        assert_eq!("time:900|ms", metric.render());
+        assert_eq!("foo.time:900|ms", metric.render_ns(Some("foo")));
+        assert_eq!("foo.time:900|ms|#a:b",
+                   metric.render_full(Some("foo"), &["a:b"]));
     }
 
     #[test]
     fn test_timing_metric() {
         let metric = TimingMetric::new("timing".into(), 720);
 
-        assert_eq!("timing:720|ms", metric.metric_type_format())
+        assert_eq!("timing:720|ms", metric.render());
+        assert_eq!("foo.timing:720|ms", metric.render_ns(Some("foo")));
+        assert_eq!("foo.timing:720|ms|#a:b",
+                   metric.render_full(Some("foo"), &["a:b"]));
     }
 
     #[test]
     fn test_gauge_metric() {
         let metric = GaugeMetric::new("gauge".into(), "12345".into());
 
-        assert_eq!("gauge:12345|g", metric.metric_type_format())
+        assert_eq!("gauge:12345|g", metric.render());
+        assert_eq!("foo.gauge:12345|g", metric.render_ns(Some("foo")));
+        assert_eq!("foo.gauge:12345|g|#a:b",
+                   metric.render_full(Some("foo"), &["a:b"]));
     }
 
     #[test]
     fn test_histogram_metric() {
         let metric = HistogramMetric::new("histogram".into(), "67890".into());
 
-        assert_eq!("histogram:67890|h", metric.metric_type_format())
+        assert_eq!("histogram:67890|h", metric.render());
+        assert_eq!("foo.histogram:67890|h", metric.render_ns(Some("foo")));
+        assert_eq!("foo.histogram:67890|h|#a:b",
+                   metric.render_full(Some("foo"), &["a:b"]));
     }
 
     #[test]
     fn test_set_metric() {
         let metric = SetMetric::new("set".into(), "13579".into());
 
-        assert_eq!("set:13579|s", metric.metric_type_format())
+        assert_eq!("set:13579|s", metric.render());
+        assert_eq!("foo.set:13579|s", metric.render_ns(Some("foo")));
+        assert_eq!("foo.set:13579|s|#a:b",
+                   metric.render_full(Some("foo"), &["a:b"]));
     }
 
     #[test]
     fn test_event() {
-        let metric = Event::new("Event Title".into(), "Event Body - Something Happened".into());
+        let metric = Event::new("Event Title".into(),
+                                "Event Body - Something Happened".into());
 
         assert_eq!("_e{11,31}:Event Title|Event Body - Something Happened",
-                   metric.metric_type_format())
+                   metric.render());
+        assert_eq!("_e{11,31}:Event Title|Event Body - Something Happened",
+                   metric.render_ns(Some("foo")));
+        assert_eq!("_e{11,31}:Event Title|Event Body - Something Happened|#a:b",
+                   metric.render_full(Some("foo"), &["a:b"]));
     }
 }
