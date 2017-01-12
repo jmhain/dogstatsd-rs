@@ -66,6 +66,7 @@ extern crate log;
 
 use std::borrow::Borrow;
 use std::io;
+use std::fmt::{Debug, Display, Error, Formatter};
 use std::net::{SocketAddr, UdpSocket};
 use std::sync::mpsc::{self, Sender};
 use std::thread::{self, JoinHandle};
@@ -115,11 +116,21 @@ impl Options {
 }
 
 /// The client struct that handles sending metrics to the Dogstatsd server.
-#[derive(Debug)]
 pub struct Client {
     namespace: Option<String>,
     tx: Sender<Vec<u8>>,
-    thread: JoinHandle<io::Result<()>>,
+    _thread: JoinHandle<io::Result<()>>,
+}
+
+impl Display for Client {
+    fn fmt(&self, f: &mut Formatter) -> Result<(), Error> {
+        write!(f, "Client(namespace={:?})", self.namespace)
+    }
+}
+impl Debug for Client {
+    fn fmt(&self, f: &mut Formatter) -> Result<(), Error> {
+        <Client as Display>::fmt(self, f)
+    }
 }
 
 impl Client {
@@ -139,7 +150,7 @@ impl Client {
             Client {
                 namespace: options.namespace,
                 tx: tx,
-                thread: thread::Builder::new()
+                _thread: thread::Builder::new()
                     .name("dogstatsd writer".to_owned())
                     .spawn(move || {
                         for msg in rx.iter() {
