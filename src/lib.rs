@@ -11,7 +11,7 @@
 //! ```
 //! use dogstatsd::{Client, Options};
 //!
-//! // Binds to a udp socket on 127.0.0.1:8126 for transmitting, and sends to
+//! // Binds to a udp socket on 127.0.0.1:0 for transmitting, and sends to
 //! // 127.0.0.1:8125, the default dogstatsd address.
 //! let default_options = Options::default();
 //! Client::new(default_options).unwrap();
@@ -90,7 +90,7 @@ impl Options {
     /// Create a new options struct with all the default settings.
     pub fn default() -> Self {
         Options {
-            from_addr: "127.0.0.1:8126".into(),
+            from_addr: "127.0.0.1:0".into(),
             to_addr: "127.0.0.1:8125".into(),
             namespace: None,
         }
@@ -322,7 +322,7 @@ mod tests {
     fn test_options_default() {
         let options = Options::default();
         let expected_options = Options {
-            from_addr: "127.0.0.1:8126".into(),
+            from_addr: "127.0.0.1:0".into(),
             to_addr: "127.0.0.1:8125".into(),
             namespace: None,
         };
