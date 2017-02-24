@@ -30,33 +30,33 @@
 //! let client = Client::new(Options::default()).unwrap();
 //!
 //! // Increment a counter
-//! client.incr("my_counter", vec![]);
+//! client.incr("my_counter", &[]);
 //!
 //! // Decrement a counter
-//! client.decr("my_counter", vec![]);
+//! client.decr("my_counter", &[]);
 //!
 //! // Time a block of code (reports in ms)
-//! client.time("my_time", vec![], || {
+//! client.time("my_time", &[], || {
 //!     // Some time consuming code
 //! });
 //!
 //! // Report your own timing in ms
-//! client.timing("my_timing", 500, vec![]);
+//! client.timing("my_timing", 500, &[]);
 //!
 //! // Report an arbitrary value (a gauge)
-//! client.gauge("my_gauge", "12345", vec![]);
+//! client.gauge("my_gauge", "12345", &[]);
 //!
 //! // Report a sample of a histogram
-//! client.histogram("my_histogram", "67890", vec![]);
+//! client.histogram("my_histogram", "67890", &[]);
 //!
 //! // Report a member of a set
-//! client.set("my_set", "13579", vec![]);
+//! client.set("my_set", "13579", &[]);
 //!
 //! // Send a custom event
-//! client.event("My Custom Event Title", "My Custom Event Body", vec![]);
+//! client.event("My Custom Event Title", "My Custom Event Body", &[]);
 //!
-//! // Add tags to any metric by passing a Vec<String> of tags to apply
-//! client.gauge("my_gauge", "12345", vec!["tag:1".into(), "tag:2".into()]);
+//! // Add tags to any metric by passing an array of tags to apply
+//! client.gauge("my_gauge", "12345", &["tag:1", "tag:2"]);
 //! ```
 
 #![deny(warnings, missing_debug_implementations, missing_copy_implementations, missing_docs)]
@@ -64,7 +64,6 @@ extern crate chrono;
 #[macro_use]
 extern crate log;
 
-use std::borrow::Borrow;
 use std::io;
 use std::fmt::{Debug, Display, Error, Formatter};
 use std::net::{SocketAddr, UdpSocket};
@@ -164,7 +163,7 @@ impl Client {
     }
 
     // generates the metrics packet and sends it to the writer thread
-    fn send<M: Metric, S: Borrow<str>>(&self, metric: M, tags: &[S]) {
+    fn send<M: Metric>(&self, metric: M, tags: &[&str]) {
         let namespace = self.namespace.as_ref().map(|s| s.as_str());
         match self.tx.send(metric.render_full(namespace, tags).into_bytes()) {
             Ok(_) => trace!("queued metric for dogstatsd"),
@@ -181,9 +180,9 @@ impl Client {
     ///
     ///
     ///   let client = Client::new(Options::default()).unwrap();
-    ///   client.incr("counter", vec!["tag:counter".into()]);
+    ///   client.incr("counter", &["tag:counter"]);
     /// ```
-    pub fn incr<S: Into<String>>(&self, stat: S, tags: Vec<String>) {
+    pub fn incr<S: Into<String>>(&self, stat: S, tags: &[&str]) {
         self.incr_by(stat, 1, tags);
     }
 
@@ -196,10 +195,10 @@ impl Client {
     ///
     ///
     ///   let client = Client::new(Options::default()).unwrap();
-    ///   client.incr_by("counter", 42, vec!["tag:counter".into()]);
+    ///   client.incr_by("counter", 42, &["tag:counter"]);
     /// ```
-    pub fn incr_by<S: Into<String>>(&self, stat: S, amt: usize, tags: Vec<String>) {
-        self.send(CountMetric::Incr(stat.into(), amt), &tags);
+    pub fn incr_by<S: Into<String>>(&self, stat: S, amt: usize, tags: &[&str]) {
+        self.send(CountMetric::Incr(stat.into(), amt), tags);
     }
 
     /// Decrement a StatsD counter
@@ -211,9 +210,9 @@ impl Client {
     ///
     ///
     ///   let client = Client::new(Options::default()).unwrap();
-    ///   client.decr("counter", vec!["tag:counter".into()]);
+    ///   client.decr("counter", &["tag:counter"]);
     /// ```
-    pub fn decr<S: Into<String>>(&self, stat: S, tags: Vec<String>) {
+    pub fn decr<S: Into<String>>(&self, stat: S, tags: &[&str]) {
         self.decr_by(stat, 1, tags);
     }
 
@@ -225,10 +224,10 @@ impl Client {
     ///   use dogstatsd::{Client, Options};
     ///
     ///   let client = Client::new(Options::default()).unwrap();
-    ///   client.decr_by("counter", 42, vec!["tag:counter".into()]);
+    ///   client.decr_by("counter", 42, &["tag:counter"]);
     /// ```
-    pub fn decr_by<S: Into<String>>(&self, stat: S, amt: usize, tags: Vec<String>) {
-        self.send(CountMetric::Decr(stat.into(), amt), &tags);
+    pub fn decr_by<S: Into<String>>(&self, stat: S, amt: usize, tags: &[&str]) {
+        self.send(CountMetric::Decr(stat.into(), amt), tags);
     }
 
     /// Time how long it takes for a block of code to execute.
@@ -241,15 +240,15 @@ impl Client {
     ///   use std::time::Duration;
     ///
     ///   let client = Client::new(Options::default()).unwrap();
-    ///   client.time("timer", vec!["tag:time".into()], || {
+    ///   client.time("timer", &["tag:time"], || {
     ///       thread::sleep(Duration::from_millis(200))
     ///   });
     /// ```
-    pub fn time<S: Into<String>, F: FnOnce()>(&self, stat: S, tags: Vec<String>, block: F) {
+    pub fn time<S: Into<String>, F: FnOnce()>(&self, stat: S, tags: &[&str], block: F) {
         let start_time = UTC::now();
         block();
         let end_time = UTC::now();
-        self.send(TimeMetric::new(stat.into(), start_time, end_time), &tags);
+        self.send(TimeMetric::new(stat.into(), start_time, end_time), tags);
     }
 
     /// Send your own timing metric in milliseconds
@@ -260,10 +259,10 @@ impl Client {
     ///   use dogstatsd::{Client, Options};
     ///
     ///   let client = Client::new(Options::default()).unwrap();
-    ///   client.timing("timing", 350, vec!["tag:timing".into()]);
+    ///   client.timing("timing", 350, &["tag:timing".into()]);
     /// ```
-    pub fn timing<S: Into<String>>(&self, stat: S, ms: i64, tags: Vec<String>) {
-        self.send(TimingMetric::new(stat.into(), ms), &tags);
+    pub fn timing<S: Into<String>>(&self, stat: S, ms: i64, tags: &[&str]) {
+        self.send(TimingMetric::new(stat.into(), ms), tags);
     }
 
     /// Report an arbitrary value as a gauge
@@ -274,10 +273,10 @@ impl Client {
     ///   use dogstatsd::{Client, Options};
     ///
     ///   let client = Client::new(Options::default()).unwrap();
-    ///   client.gauge("gauge", "12345", vec!["tag:gauge".into()]);
+    ///   client.gauge("gauge", "12345", &["tag:gauge"]);
     /// ```
-    pub fn gauge<S: Into<String>>(&self, stat: S, val: S, tags: Vec<String>) {
-        self.send(GaugeMetric::new(stat.into(), val.into()), &tags);
+    pub fn gauge<S: Into<String>>(&self, stat: S, val: S, tags: &[&str]) {
+        self.send(GaugeMetric::new(stat.into(), val.into()), tags);
     }
 
     /// Report a value in a histogram
@@ -288,10 +287,10 @@ impl Client {
     ///   use dogstatsd::{Client, Options};
     ///
     ///   let client = Client::new(Options::default()).unwrap();
-    ///   client.histogram("histogram", "67890", vec!["tag:histogram".into()]);
+    ///   client.histogram("histogram", "67890", &["tag:histogram"]);
     /// ```
-    pub fn histogram<S: Into<String>>(&self, stat: S, val: S, tags: Vec<String>) {
-        self.send(HistogramMetric::new(stat.into(), val.into()), &tags);
+    pub fn histogram<S: Into<String>>(&self, stat: S, val: S, tags: &[&str]) {
+        self.send(HistogramMetric::new(stat.into(), val.into()), tags);
     }
 
     /// Report a value in a set
@@ -302,10 +301,10 @@ impl Client {
     ///   use dogstatsd::{Client, Options};
     ///
     ///   let client = Client::new(Options::default()).unwrap();
-    ///   client.set("set", "13579", vec!["tag:set".into()]);
+    ///   client.set("set", "13579", &["tag:set"]);
     /// ```
-    pub fn set<S: Into<String>>(&self, stat: S, val: S, tags: Vec<String>) {
-        self.send(SetMetric::new(stat.into(), val.into()), &tags);
+    pub fn set<S: Into<String>>(&self, stat: S, val: S, tags: &[&str]) {
+        self.send(SetMetric::new(stat.into(), val.into()), tags);
     }
 
     /// Send a custom event as a title and a body
@@ -316,10 +315,10 @@ impl Client {
     ///   use dogstatsd::{Client, Options};
     ///
     ///   let client = Client::new(Options::default()).unwrap();
-    ///   client.event("Event Title", "Event Body", vec!["tag:event".into()]);
+    ///   client.event("Event Title", "Event Body", &["tag:event"]);
     /// ```
-    pub fn event<S: Into<String>>(&self, title: S, text: S, tags: Vec<String>) {
-        self.send(Event::new(title.into(), text.into()), &tags);
+    pub fn event<S: Into<String>>(&self, title: S, text: S, tags: &[&str]) {
+        self.send(Event::new(title.into(), text.into()), tags);
     }
 }
 

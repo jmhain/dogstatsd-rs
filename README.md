@@ -35,31 +35,31 @@ use dogstatsd::{Client, Options};
 let client = Client::new(Options::default());
 
 // Increment a counter
-client.incr("my_counter", vec![]).unwrap();
+client.incr("my_counter", &[]).unwrap();
 
 // Decrement a counter
-client.decr("my_counter", vec![]).unwrap();
+client.decr("my_counter", &[]).unwrap();
 
 // Time a block of code (reports in ms)
-client.time("my_time", vec![], || {
+client.time("my_time", &[], || {
     // Some time consuming code
 }).unwrap();
 
 // Report your own timing in ms
-client.timing("my_timing", 500, vec![]).unwrap();
+client.timing("my_timing", 500, &[]).unwrap();
 
 // Report an arbitrary value (a gauge)
-client.gauge("my_gauge", "12345", vec![]).unwrap();
+client.gauge("my_gauge", "12345", &[]).unwrap();
 
 // Report a sample of a histogram
-client.histogram("my_histogram", "67890", vec![]).unwrap();
+client.histogram("my_histogram", "67890", &[]).unwrap();
 
 // Report a member of a set
-client.set("my_set", "13579", vec![]).unwrap();
+client.set("my_set", "13579", &[]).unwrap();
 
 // Send a custom event
-client.event("My Custom Event Title", "My Custom Event Body", vec![]).unwrap();
+client.event("My Custom Event Title", "My Custom Event Body", &[]).unwrap();
 
-// Add tags to any metric by passing a Vec<String> of tags to apply
-client.gauge("my_gauge", "12345", vec!["tag:1".into(), "tag:2".into()]).unwrap();
+// Add tags to any metric by passing an array of tags to apply
+client.gauge("my_gauge", "12345", &["tag:1", "tag:2"]).unwrap();
 ```

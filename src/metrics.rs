@@ -1,5 +1,3 @@
-use std::borrow::Borrow;
-
 use chrono::{DateTime, UTC};
 
 pub trait Metric {
@@ -14,7 +12,7 @@ pub trait Metric {
     }
 
     /// Renders a metrics using the given namespace, with tags
-    fn render_full<S: Borrow<str>>(&self, namespace: Option<&str>, tags: &[S]) -> String {
+    fn render_full(&self, namespace: Option<&str>, tags: &[&str]) -> String {
         let metric = self.render_ns(namespace);
         let joined = tags.join(",");
 
