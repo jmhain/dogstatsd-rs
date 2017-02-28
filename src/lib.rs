@@ -67,7 +67,7 @@ extern crate log;
 use std::borrow::Borrow;
 use std::io;
 use std::fmt::{Debug, Display, Error, Formatter};
-use std::net::{SocketAddr, UdpSocket};
+use std::net::{SocketAddr, UdpSocket, ToSocketAddrs};
 use std::sync::mpsc::{self, Sender};
 use std::thread::{self, JoinHandle};
 
@@ -145,7 +145,8 @@ impl Client {
     /// ```
     pub fn new(options: Options) -> io::Result<Self> {
         UdpSocket::bind(options.from_addr.as_str()).map(move |socket| {
-            let to_addr = options.to_addr.parse::<SocketAddr>().unwrap();
+            let to_addr: Vec<SocketAddr> = options.to_addr.as_str().to_socket_addrs()
+                .unwrap().collect();
             let (tx, rx) = mpsc::channel();
             Client {
                 namespace: options.namespace,
@@ -154,7 +155,7 @@ impl Client {
                     .name("dogstatsd writer".to_owned())
                     .spawn(move || {
                         for msg in rx.iter() {
-                            socket.send_to(&msg, &to_addr).map(|_| ())?;
+                            socket.send_to(&msg, to_addr.as_slice()).map(|_| ())?;
                         }
                         Ok(())
                     })
