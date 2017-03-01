@@ -145,7 +145,7 @@ impl Client {
     /// ```
     pub fn new(options: Options) -> io::Result<Self> {
         UdpSocket::bind(options.from_addr.as_str()).map(move |socket| {
-            let to_addr: Vec<SocketAddr> = options.to_addr.as_str().to_socket_addrs()
+            let to_addr: Vec<SocketAddr> = options.to_addr.to_socket_addrs()
                 .unwrap().collect();
             let (tx, rx) = mpsc::channel();
             Client {
