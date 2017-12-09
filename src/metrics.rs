@@ -79,10 +79,7 @@ impl Metric for TimingMetric {
 
 impl TimingMetric {
     pub fn new(stat: String, ms: i64) -> Self {
-        TimingMetric {
-            ms: ms,
-            stat: stat,
-        }
+        TimingMetric { ms: ms, stat: stat }
     }
 }
 
@@ -156,11 +153,13 @@ pub struct Event {
 
 impl Metric for Event {
     fn render(&self) -> String {
-        format!("_e{{{title_len},{text_len}}}:{title}|{text}",
-                title_len = self.title.len(),
-                text_len = self.text.len(),
-                title = self.title,
-                text = self.text)
+        format!(
+            "_e{{{title_len},{text_len}}}:{title}|{text}",
+            title_len = self.title.len(),
+            text_len = self.text.len(),
+            title = self.title,
+            text = self.text
+        )
     }
     fn render_ns(&self, _: Option<&str>) -> String {
         self.render() // ignore the namespace for Events
@@ -187,8 +186,10 @@ mod tests {
 
         assert_eq!("incr:10|c", metric.render());
         assert_eq!("foo.incr:10|c", metric.render_ns(Some("foo")));
-        assert_eq!("foo.incr:10|c|#a:b",
-                   metric.render_full(Some("foo"), &["a:b"]));
+        assert_eq!(
+            "foo.incr:10|c|#a:b",
+            metric.render_full(Some("foo"), &["a:b"])
+        );
     }
 
     #[test]
@@ -197,8 +198,10 @@ mod tests {
 
         assert_eq!("decr:0|c", metric.render());
         assert_eq!("foo.decr:0|c", metric.render_ns(Some("foo")));
-        assert_eq!("foo.decr:0|c|#a:b",
-                   metric.render_full(Some("foo"), &["a:b"]));
+        assert_eq!(
+            "foo.decr:0|c|#a:b",
+            metric.render_full(Some("foo"), &["a:b"])
+        );
     }
 
     #[test]
@@ -209,8 +212,10 @@ mod tests {
 
         assert_eq!("time:900|ms", metric.render());
         assert_eq!("foo.time:900|ms", metric.render_ns(Some("foo")));
-        assert_eq!("foo.time:900|ms|#a:b",
-                   metric.render_full(Some("foo"), &["a:b"]));
+        assert_eq!(
+            "foo.time:900|ms|#a:b",
+            metric.render_full(Some("foo"), &["a:b"])
+        );
     }
 
     #[test]
@@ -219,8 +224,10 @@ mod tests {
 
         assert_eq!("timing:720|ms", metric.render());
         assert_eq!("foo.timing:720|ms", metric.render_ns(Some("foo")));
-        assert_eq!("foo.timing:720|ms|#a:b",
-                   metric.render_full(Some("foo"), &["a:b"]));
+        assert_eq!(
+            "foo.timing:720|ms|#a:b",
+            metric.render_full(Some("foo"), &["a:b"])
+        );
     }
 
     #[test]
@@ -229,8 +236,10 @@ mod tests {
 
         assert_eq!("gauge:12345|g", metric.render());
         assert_eq!("foo.gauge:12345|g", metric.render_ns(Some("foo")));
-        assert_eq!("foo.gauge:12345|g|#a:b",
-                   metric.render_full(Some("foo"), &["a:b"]));
+        assert_eq!(
+            "foo.gauge:12345|g|#a:b",
+            metric.render_full(Some("foo"), &["a:b"])
+        );
     }
 
     #[test]
@@ -239,8 +248,10 @@ mod tests {
 
         assert_eq!("histogram:67890|h", metric.render());
         assert_eq!("foo.histogram:67890|h", metric.render_ns(Some("foo")));
-        assert_eq!("foo.histogram:67890|h|#a:b",
-                   metric.render_full(Some("foo"), &["a:b"]));
+        assert_eq!(
+            "foo.histogram:67890|h|#a:b",
+            metric.render_full(Some("foo"), &["a:b"])
+        );
     }
 
     #[test]
@@ -249,20 +260,30 @@ mod tests {
 
         assert_eq!("set:13579|s", metric.render());
         assert_eq!("foo.set:13579|s", metric.render_ns(Some("foo")));
-        assert_eq!("foo.set:13579|s|#a:b",
-                   metric.render_full(Some("foo"), &["a:b"]));
+        assert_eq!(
+            "foo.set:13579|s|#a:b",
+            metric.render_full(Some("foo"), &["a:b"])
+        );
     }
 
     #[test]
     fn test_event() {
-        let metric = Event::new("Event Title".into(),
-                                "Event Body - Something Happened".into());
+        let metric = Event::new(
+            "Event Title".into(),
+            "Event Body - Something Happened".into(),
+        );
 
-        assert_eq!("_e{11,31}:Event Title|Event Body - Something Happened",
-                   metric.render());
-        assert_eq!("_e{11,31}:Event Title|Event Body - Something Happened",
-                   metric.render_ns(Some("foo")));
-        assert_eq!("_e{11,31}:Event Title|Event Body - Something Happened|#a:b",
-                   metric.render_full(Some("foo"), &["a:b"]));
+        assert_eq!(
+            "_e{11,31}:Event Title|Event Body - Something Happened",
+            metric.render()
+        );
+        assert_eq!(
+            "_e{11,31}:Event Title|Event Body - Something Happened",
+            metric.render_ns(Some("foo"))
+        );
+        assert_eq!(
+            "_e{11,31}:Event Title|Event Body - Something Happened|#a:b",
+            metric.render_full(Some("foo"), &["a:b"])
+        );
     }
 }

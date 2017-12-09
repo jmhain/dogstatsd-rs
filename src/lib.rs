@@ -114,11 +114,29 @@ impl Options {
     }
 }
 
-/// The client struct that handles sending metrics to the Dogstatsd server.
-pub struct Client {
+/// The client factory that generates client instances.
+pub struct ClientFactory {
     namespace: Option<String>,
     tx: Sender<Vec<u8>>,
     _thread: JoinHandle<io::Result<()>>,
+}
+
+impl Display for ClientFactory {
+    fn fmt(&self, f: &mut Formatter) -> Result<(), Error> {
+        write!(f, "ClientFactory(namespace={:?})", self.namespace)
+    }
+}
+impl Debug for ClientFactory {
+    fn fmt(&self, f: &mut Formatter) -> Result<(), Error> {
+        <ClientFactory as Display>::fmt(self, f)
+    }
+}
+
+/// The client struct that handles sending metrics to the Dogstatsd server.
+#[derive(Clone)]
+pub struct Client {
+    namespace: Option<String>,
+    tx: Sender<Vec<u8>>,
 }
 
 impl Display for Client {
@@ -132,22 +150,21 @@ impl Debug for Client {
     }
 }
 
-impl Client {
-    /// Create a new client from an options struct.
+impl ClientFactory {
+    /// Create a new client factory from an options struct.
     ///
     /// # Examples
     ///
     /// ```
-    ///   use dogstatsd::{Client, Options};
+    ///   use dogstatsd::{ClientFactory, Options};
     ///
-    ///   let client = Client::new(Options::default()).unwrap();
+    ///   let client = ClientFactory::new(Options::default()).unwrap();
     /// ```
     pub fn new(options: Options) -> io::Result<Self> {
         UdpSocket::bind(options.from_addr.as_str()).map(move |socket| {
-            let to_addr: Vec<SocketAddr> = options.to_addr.to_socket_addrs()
-                .unwrap().collect();
+            let to_addr: Vec<SocketAddr> = options.to_addr.to_socket_addrs().unwrap().collect();
             let (tx, rx) = mpsc::channel();
-            Client {
+            ClientFactory {
                 namespace: options.namespace,
                 tx: tx,
                 _thread: thread::Builder::new()
@@ -163,10 +180,22 @@ impl Client {
         })
     }
 
+    /// Create a new Client from a ClientFactory
+    pub fn mk_client(&self) -> Client {
+        Client {
+            namespace: self.namespace.clone(),
+            tx: self.tx.clone(),
+        }
+    }
+}
+
+impl Client {
     // generates the metrics packet and sends it to the writer thread
     fn send<M: Metric>(&self, metric: M, tags: &[&str]) {
         let namespace = self.namespace.as_ref().map(|s| s.as_str());
-        match self.tx.send(metric.render_full(namespace, tags).into_bytes()) {
+        match self.tx.send(
+            metric.render_full(namespace, tags).into_bytes(),
+        ) {
             Ok(_) => trace!("queued metric for dogstatsd"),
             Err(_) => warn!("unable to send metric to dogstatsd"),
         };
@@ -350,7 +379,9 @@ mod tests {
     fn test_send() {
         let options = Options::new("127.0.0.1:9001", "127.0.0.1:9002", "");
         let client = Client::new(options).unwrap();
-        client.send(GaugeMetric::new("gauge".into(), "1234".into()),
-                    &["tag1", "tag2"]);
+        client.send(
+            GaugeMetric::new("gauge".into(), "1234".into()),
+            &["tag1", "tag2"],
+        );
     }
 }
