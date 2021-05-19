@@ -59,14 +59,19 @@
 //! client.gauge("my_gauge", "12345", &["tag:1", "tag:2"]);
 //! ```
 
-#![deny(warnings, missing_debug_implementations, missing_copy_implementations, missing_docs)]
+#![deny(
+    warnings,
+    missing_debug_implementations,
+    missing_copy_implementations,
+    missing_docs
+)]
 extern crate chrono;
 #[macro_use]
 extern crate log;
 
-use std::io;
 use std::fmt::{Debug, Display, Error, Formatter};
-use std::net::{SocketAddr, UdpSocket, ToSocketAddrs};
+use std::io;
+use std::net::{SocketAddr, ToSocketAddrs, UdpSocket};
 use std::sync::mpsc::{self, Sender};
 use std::thread::{self, JoinHandle};
 
@@ -193,9 +198,10 @@ impl Client {
     // generates the metrics packet and sends it to the writer thread
     fn send<M: Metric>(&self, metric: M, tags: &[&str]) {
         let namespace = self.namespace.as_ref().map(|s| s.as_str());
-        match self.tx.send(
-            metric.render_full(namespace, tags).into_bytes(),
-        ) {
+        match self
+            .tx
+            .send(metric.render_full(namespace, tags).into_bytes())
+        {
             Ok(_) => trace!("queued metric for dogstatsd"),
             Err(_) => warn!("unable to send metric to dogstatsd"),
         };
@@ -323,6 +329,20 @@ impl Client {
         self.send(HistogramMetric::new(stat.into(), val.into()), tags);
     }
 
+    /// Report a value in a distribution
+    ///
+    /// # Examples
+    ///
+    /// ```
+    ///   use dogstatsd::{Client, Options};
+    ///
+    ///   let client = Client::new(Options::default()).unwrap();
+    ///   client.distribution("distribution", "67890", &["tag:distribution"]);
+    /// ```
+    pub fn distribution<S: Into<String>>(&self, stat: S, val: u64, tags: &[&str]) {
+        self.send(DistributionMetric::new(stat.into(), val), tags)
+    }
+
     /// Report a value in a set
     ///
     /// # Examples
@@ -360,8 +380,8 @@ mod tests {
 
     #[test]
     fn test_options_default() {
-        let options = Options::default();
-        let expected_options = Options {
+            let options = Options::default();
+            let expected_options = Options {
             from_addr: "127.0.0.1:0".into(),
             to_addr: "127.0.0.1:8125".into(),
             namespace: None,

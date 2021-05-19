@@ -125,6 +125,22 @@ impl HistogramMetric {
     }
 }
 
+pub struct DistributionMetric {
+    stat: String,
+    val: u32,
+}
+
+impl Metric for DistributionMetric {
+    // my_distribution:1000|d
+    fn render(&self) -> String { format!("{}:{}|d", self.stat, self.val) }
+}
+
+impl DistributionMetric {
+    pub fn new(stat: String, value: u32) -> Self {
+        DistributionMetric { stat, val: value }
+    }
+}
+
 pub struct SetMetric {
     stat: String,
     val: String,
@@ -177,8 +193,8 @@ impl Event {
 
 #[cfg(test)]
 mod tests {
-    use chrono::{TimeZone, UTC};
     use super::*;
+    use chrono::{TimeZone, UTC};
 
     #[test]
     fn test_count_incr_metric() {
