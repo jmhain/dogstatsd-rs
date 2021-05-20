@@ -339,7 +339,7 @@ impl Client {
     ///   let client = Client::new(Options::default()).unwrap();
     ///   client.distribution("distribution", "67890", &["tag:distribution"]);
     /// ```
-    pub fn distribution<S: Into<String>>(&self, stat: S, val: u64, tags: &[&str]) {
+    pub fn distribution<S: Into<String>>(&self, stat: S, val: u32, tags: &[&str]) {
         self.send(DistributionMetric::new(stat.into(), val), tags)
     }
 
